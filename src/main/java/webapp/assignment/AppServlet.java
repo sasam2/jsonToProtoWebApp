@@ -89,16 +89,15 @@ public class AppServlet extends HttpServlet {
 		System.out.println("AsyncContext ");
         AsyncContext asyncContext = request.startAsync();
        
-        //FIXME check timeout
-        asyncContext.setTimeout(5000);
-        System.out.println("asyncContext timeout="+asyncContext.getTimeout());
+        asyncContext.setTimeout(500);
+        System.out.println("AsyncContext timeout "+asyncContext.getTimeout());
         
         asyncContext.addListener(new AsyncListener() {
 			
 			@Override
 			public void onTimeout(AsyncEvent event) throws IOException {
 				System.out.println("Proto write timeout.");
-				System.out.println("asyncContext timeout="+event.getAsyncContext().getTimeout());
+				
 				//reset
 				synchronized(outputFile) {
 					outputStream.close();
@@ -142,10 +141,8 @@ public class AppServlet extends HttpServlet {
             	    	System.out.println(e);
             	  	}
     			}
+        		asyncContext.complete();
             }
         });
-        
-        
 	}
-
 }
