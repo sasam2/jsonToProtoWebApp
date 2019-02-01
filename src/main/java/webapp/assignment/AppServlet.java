@@ -5,7 +5,6 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.Iterator;
-import java.util.Scanner;
 
 import javax.servlet.AsyncContext;
 import javax.servlet.AsyncEvent;
@@ -26,15 +25,17 @@ import generated.InfoOuterClass;
  */
 public class AppServlet extends HttpServlet {
 	private static final long serialVersionUID = 1L;
-       
+	private static final String pathToFile = "/infoObject.proto";
+	private static final File outputFile = new File(pathToFile);   
+	
+	private FileOutputStream outputStream = null; //
     /**
      * @see HttpServlet#HttpServlet()
      */
-	private final File outputFile;
+	
     public AppServlet() {
         super();
         // TODO Auto-generated constructor stub
-        outputFile = new File("info.proto");
     }
 
 	/**
@@ -51,6 +52,8 @@ public class AppServlet extends HttpServlet {
 	 */
 	protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
 		// Read json
+
+		System.out.println("Info json ");
 		BufferedReader bufferedReader = request.getReader();
 	    StringBuilder stringBuilder = new StringBuilder();
         char[] charBuffer = new char[128];
@@ -59,20 +62,17 @@ public class AppServlet extends HttpServlet {
             stringBuilder.append(charBuffer, 0, bytesRead);
         }
 		String reqStr = stringBuilder.toString();
-		
-		System.out.println("Json request: "+reqStr);
-		response.getWriter().append("Json request: "+reqStr+"\n");
-		
 		JSONObject jsonObject = new JSONObject(reqStr);
 		
+		System.out.println("Json request: "+jsonObject);
+		response.getWriter().append("\nJson request: \n"+jsonObject);		
+
+		System.out.println("Info protoObject ");
 		InfoOuterClass.Info.Builder builder = InfoOuterClass.Info.newBuilder();
-		System.out.println("Json itr ");
-		
 		Iterator<String> keyItr = jsonObject.keys();
 		while(keyItr.hasNext()) {
 			String key = keyItr.next();
 			Object valObj = jsonObject.get(key);
-			
 			if("name".equals(key) && valObj instanceof String)
 				builder.setName((String)valObj);
 			else if("id".equals(key) && valObj instanceof Integer)
@@ -81,29 +81,35 @@ public class AppServlet extends HttpServlet {
 				throw new IllegalArgumentException("Unexpected value type for key "+key);
 			
 		}
-		System.out.println("Info protoObject ");
 		InfoOuterClass.Info protoObject = builder.build();
 		
-		FileOutputStream outputStream = new FileOutputStream(outputFile);
+		System.out.println("Proto to write: "+protoObject);
+		response.getWriter().append("\nProto to write: \n"+protoObject);
+				
 		
-		System.out.println("AsyncContext ");
+		System.out.println("AsyncContext - write to file ");
         AsyncContext asyncContext = request.startAsync();
-       
         asyncContext.setTimeout(500);
         System.out.println("AsyncContext timeout "+asyncContext.getTimeout());
-        
         asyncContext.addListener(new AsyncListener() {
 			
 			@Override
 			public void onTimeout(AsyncEvent event) throws IOException {
 				System.out.println("Proto write timeout.");
+				System.out.println("Current thread: "+Thread.currentThread().getId());
 				
-				//reset
-				outputStream.close();
-	    	    (new FileOutputStream(outputFile)).close();
-				
+				//close and reset fileStream. reset file
+				if(outputStream != null) {
+					System.out.println("File outputstream seems open. Closing and reseting.");
+					outputStream.close();
+					(new FileOutputStream(outputFile)).close();
+					outputStream=null;
+				} else {
+					System.out.println("Timeout but outputstream was not open. Doing nothing.");
+				}				
     	    	ServletResponse response = event.getAsyncContext().getResponse();
-				response.getWriter().append("Proto timeout \n");
+    	    	((HttpServletResponse) response).setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+				response.getWriter().append("\nProto timeout ");
 			}
 			
 			@Override
@@ -115,15 +121,15 @@ public class AppServlet extends HttpServlet {
 			public void onError(AsyncEvent event) throws IOException {
 				System.out.println("Proto write exception.");
 				ServletResponse response = event.getAsyncContext().getResponse();
-				response.getWriter().append("Proto error: "+event.getThrowable().getMessage()+"\n");
+				((HttpServletResponse) response).setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+				response.getWriter().append("\nProto error: "+event.getThrowable().getMessage());
 			}
 			
 			@Override
 			public void onComplete(AsyncEvent event) throws IOException {
 				System.out.println("Proto write complete.");
 				ServletResponse response = event.getAsyncContext().getResponse();
-				System.out.println("Proto response: "+protoObject);
-				response.getWriter().append("Proto request: "+protoObject+"\n");				
+				response.getWriter().append("\nProto file size: "+outputFile.length()+" bytes.");
 			}
 		});
         AsyncContext finalAsyncContext = asyncContext;
@@ -132,15 +138,31 @@ public class AppServlet extends HttpServlet {
             @Override
             public void run () {
         		synchronized(outputFile) {
-    				try {
-        				protoObject.writeTo(outputStream);
-        				outputStream.close();
+        			System.out.println("Current thread runnable: "+Thread.currentThread().getId());
+    				
+        			try {
+        				//open and init fileStream
+    					outputStream = new FileOutputStream(outputFile);
+    					
+    					//write fileStream
+    					try {
+        					System.out.println("Here is a sleep");
+							Thread.sleep(10000);
+						} catch (InterruptedException e) {
+							e.printStackTrace();
+						}
+    					protoObject.writeTo(outputStream);
+    					    					
+    					//close and reset fileStream
+    					outputStream.close();
+    					outputStream=null;
+    					asyncContext.complete(); 
+    					
         			} catch(IOException e){
             	    	System.out.println("Exception writting to file.");
-            	    	System.out.println(e);
+            	    	e.printStackTrace();
             	  	}
     			}
-        		asyncContext.complete();
             }
         });
 	}
