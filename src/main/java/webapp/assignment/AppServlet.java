@@ -99,10 +99,9 @@ public class AppServlet extends HttpServlet {
 				System.out.println("Proto write timeout.");
 				
 				//reset
-				synchronized(outputFile) {
-					outputStream.close();
-	    	    	(new FileOutputStream(outputFile)).close();
-				}
+				outputStream.close();
+	    	    (new FileOutputStream(outputFile)).close();
+				
     	    	ServletResponse response = event.getAsyncContext().getResponse();
 				response.getWriter().append("Proto timeout \n");
 			}
