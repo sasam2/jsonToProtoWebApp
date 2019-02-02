@@ -53,8 +53,12 @@ Timeouts and errors originate a failed response with Http status 500 - Internal 
 
 #Improvements
 
-[File Rollover] should be improved. It doesn't consider synchronization, therefore file reset (close and open file again) could occur during another thread writting attempt and lead to failures.
-[File write] on the file, there should be saved a list of protobuf objects. Each new received object should be added to the list and to the file. Currently it is only saved the latest received instace. #TODO FIX THIS
+[File Rollover] should be improved. 
+If write fails, file is reset by closing and open/close it again. This wipes all previouly saved data from the file, and should be addressed properly.
+
+Also, file reset doesn't consider synchronization. Therefore file reset (close and open file again) could occur during another thread writting attempt and lead to failures.
+
+[Tests] tests with concurrent requests should be made, to check if file is updated accordingly.  
 
 
 #Requirements
