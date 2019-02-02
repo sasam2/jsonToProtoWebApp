@@ -2,6 +2,8 @@ package webapp.assignment;
 
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.Iterator;
@@ -19,17 +21,20 @@ import javax.servlet.http.HttpServletResponse;
 
 import org.json.JSONObject;
 import generated.InfoOuterClass;
+import generated.InfoOuterClass.InfoList;
 
 /*
  * Servlet implementation class AppServletpro
  */
 public class AppServlet extends HttpServlet {
 	private static final long serialVersionUID = 1L;
-	private static final String pathToFile = "/infoObject.proto";
-	private static final File outputFile = new File(pathToFile);   
+	private static final String pathToFile = "infoObject.proto";
 	
-	private FileOutputStream outputStream = null; //
-    /**
+	private static final File messageFile = new File(pathToFile);   
+	
+	private FileInputStream inputStream = null;
+    private FileOutputStream outputStream = null;
+	/**
      * @see HttpServlet#HttpServlet()
      */
 	
@@ -98,15 +103,17 @@ public class AppServlet extends HttpServlet {
 				System.out.println("Proto write timeout.");
 				System.out.println("Current thread: "+Thread.currentThread().getId());
 				
-				//close and reset fileStream. reset file
+				//close and reset fileStreams. reset file
+				if(inputStream != null) {
+					System.out.println("Timeout with file inputStream open. Closing.");
+					inputStream.close();
+				}
 				if(outputStream != null) {
-					System.out.println("File outputstream seems open. Closing and reseting.");
+					System.out.println("Timeout with file outputstream open. Closing and reseting file.");
 					outputStream.close();
-					(new FileOutputStream(outputFile)).close();
+					(new FileOutputStream(messageFile)).close();
 					outputStream=null;
-				} else {
-					System.out.println("Timeout but outputstream was not open. Doing nothing.");
-				}				
+				}
     	    	ServletResponse response = event.getAsyncContext().getResponse();
     	    	((HttpServletResponse) response).setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
 				response.getWriter().append("\nProto timeout ");
@@ -129,41 +136,56 @@ public class AppServlet extends HttpServlet {
 			public void onComplete(AsyncEvent event) throws IOException {
 				System.out.println("Proto write complete.");
 				ServletResponse response = event.getAsyncContext().getResponse();
-				response.getWriter().append("\nProto file size: "+outputFile.length()+" bytes.");
+				response.getWriter().append("\nProto file size: "+messageFile.length()+" bytes.");
 			}
 		});
         AsyncContext finalAsyncContext = asyncContext;
         System.out.println("Launching async file write.");
+        System.out.println("Absolute path to file: "+messageFile.getAbsolutePath()+".");
         finalAsyncContext.start(new Runnable() {
             @Override
             public void run () {
-        		synchronized(outputFile) {
-        			System.out.println("Current thread runnable: "+Thread.currentThread().getId());
-    				
-        			try {
-        				//open and init fileStream
-    					outputStream = new FileOutputStream(outputFile);
-    					
-    					//write fileStream
-    					try {
-        					System.out.println("Here is a sleep");
-							Thread.sleep(10000);
-						} catch (InterruptedException e) {
-							e.printStackTrace();
-						}
-    					protoObject.writeTo(outputStream);
-    					    					
-    					//close and reset fileStream
-    					outputStream.close();
-    					outputStream=null;
-    					asyncContext.complete(); 
-    					
-        			} catch(IOException e){
-            	    	System.out.println("Exception writting to file.");
-            	    	e.printStackTrace();
-            	  	}
+            		
+    			addObjectToFile: {
+            		InfoOuterClass.InfoList.Builder infoListBuilder = InfoOuterClass.InfoList.newBuilder();
+    			
+    				synchronized(messageFile) {
+            			System.out.println("Thread "+Thread.currentThread().getId()+" entered sync block.");
+                    
+	    				//READ object list from file
+	    				try {
+	        				inputStream = new FileInputStream(messageFile);
+	    					infoListBuilder.mergeFrom(inputStream); 
+	    					inputStream.close();
+	    					inputStream=null;
+	    				} catch (FileNotFoundException e1) {
+	    					System.out.println("Error opening the file."); //will assume file doesnt exist and this is the first enty	    					e1.printStackTrace();
+	    				} catch (IOException e) {
+	    					System.out.println("Error reading file from disk.");
+	    					e.printStackTrace();
+	    					break addObjectToFile;
+	    				}
+	            		infoListBuilder.addList(protoObject);
+	            		InfoList infoList = infoListBuilder.build();
+						System.out.println("Object list has now "+infoList.getListCount()+" entries.");
+	        			
+	    				//WRITE object list to file
+						try {
+	        				outputStream = new FileOutputStream(messageFile);
+	    					infoList.writeTo(outputStream);
+	    					outputStream.close();
+	    					outputStream=null;
+	        			} catch(IOException e){
+	            	    	System.out.println("Exception writting to file.");
+	            	    	e.printStackTrace();
+	            	    	break addObjectToFile;
+	            	  	}
+						System.out.println("Saved "+infoList.getListCount()+" object list entries to file. File size: "+messageFile.length()+".");
+    				}
+					asyncContext.complete();
     			}
-            }
+			}
+            
         });
 	}
 }

@@ -26,7 +26,7 @@ exit $?; fi
 
 sleep 6
 
-curl -I -d '{"name":"ivo","id":12}' -H "Content-Type:application/json" -X POST http://localhost:8080/webappassignment/AppServlet
+curl -d '{"name":"ivo","id":12}' -H "Content-Type:application/json" -X POST http://localhost:8080/webappassignment/AppServlet
 
 if [ $? -ne 0 ];then 
 echo "Test app failed."; fi
