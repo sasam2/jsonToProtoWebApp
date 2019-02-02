@@ -51,6 +51,13 @@ Asynchronous context timeout (timeout is 500 ms) can occur:
 Timeouts and errors originate a failed response with Http status 500 - Internal Server Error.
 
 
+#Tests
+
+Tests were done with curl. Example:
+
+curl  -d '{"name":"ivo","id":12}' -H "Content-Type:application/json" -X POST http://localhost:8080/webappassignment/AppServlet
+
+
 #Improvements
 
 [File Rollover] should be improved. 
@@ -58,7 +65,7 @@ If write fails, file is reset by closing and open/close it again. This wipes all
 
 Also, file reset doesn't consider synchronization. Therefore file reset (close and open file again) could occur during another thread writting attempt and lead to failures.
 
-[Tests] tests with concurrent requests should be made, to check if file is updated accordingly.  
+[Tests] tests with concurrent requests should be made, to check if file is updated accordingly.
 
 
 #Requirements
